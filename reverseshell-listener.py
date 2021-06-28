@@ -26,6 +26,7 @@ def main():
     connectedSession = 1
     while True:
         try:
+
             if connectedSession != 0:
                 sessionMatch = False
                 for client in conntionpool.clients:
@@ -34,9 +35,12 @@ def main():
                         client.interact()
                         connectedSession = 0
                 
-                if not sessionMatch and len(conntionpool.clients) > 0:
+                if not sessionMatch and len(conntionpool.clients) > 1:
                     print("[-] No matched session or session has been closed")
                     connectedSession = 0
+                elif len(conntionpool.clients) == 0:
+                    # Wait until the connection comes on first time
+                    connectedSession = 1
             elif len(conntionpool.clients) > 0:
                 command = input("listener> ")
                 connectedSession = commandHandler(command, conntionpool)
@@ -114,7 +118,7 @@ class Socket:
 
     def listen(self, sessionId):
         try:
-            self.conn.setblocking(0)
+            self.conn.setblocking(False)
             self.sessionId = sessionId
             print("[+] Got connection from <%s:%d>, Session ID: %d" % (self.addr[0], self.addr[1], self.sessionId))
         except socket.timeout:
@@ -129,7 +133,7 @@ class Socket:
         try:
             for chunk in self._chunks(message, chunksize):
                 self.conn.send(chunk)
-            time.sleep(0.1)
+            time.sleep(0.5)
         except socket.timeout:
             print("[-] Error: Connection timed out")
             self.close()
