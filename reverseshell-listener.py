@@ -9,9 +9,10 @@ import socket
 import threading
 
 def main():
-    print("===========================")
-    print(" Reverse Shell listener")
-    print("===========================")
+    print("=======================================")
+    print(" Multithreaded Reverse Shell listener  ")
+    print(" v0.0.1                                ")
+    print("=======================================")
     port = 9000
 
     if len(sys.argv) <= 1:

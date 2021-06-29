@@ -18,9 +18,10 @@ var ctrlCChan = make(chan os.Signal, 1)
 var backgroundCommand = "rev-bg"
 
 func main() {
-	fmt.Println("===========================")
-	fmt.Println(" Reverse Shell listener")
-	fmt.Println("===========================")
+	fmt.Println("=======================================")
+	fmt.Println(" Multithreaded Reverse Shell listener  ")
+	fmt.Println(" v0.0.1                                ")
+	fmt.Println("=======================================")
 
 	// Keyboard signal notify
 	signal.Notify(ctrlCChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
