@@ -192,11 +192,8 @@ func (s *Socket) readingFromStdin(src io.Reader, dst io.Writer) <-chan int {
 	// Input handler
 	// Read on ctrl+c/z and input channel
 	go func() {
-		defer func() {
-			fmt.Println("\n[-] Input handler has closed")
-		}()
 		for {
-			if !s.isClosed {
+			if !s.isClosed && !s.isBackground {
 				var sendErr error
 				select {
 				case <-ctrlCChan:
@@ -216,6 +213,8 @@ func (s *Socket) readingFromStdin(src io.Reader, dst io.Writer) <-chan int {
 					fmt.Println("\n[!] Write error:", sendErr)
 					s.isClosed = true
 				}
+			}else{
+				break
 			}
 		}
 	}()
@@ -243,7 +242,7 @@ func (s *Socket) readingFromStdin(src io.Reader, dst io.Writer) <-chan int {
 
 			nBytes, err = src.Read(buf)
 			// Special command
-			command := string(buf[0 : nBytes-1])
+			command := strings.TrimSuffix(string(buf[0 : nBytes]), "\n")
 			if command == backgroundCommand {
 				s.isBackground = true
 			}
