@@ -42,6 +42,7 @@ func main() {
 		destinationPort = fmt.Sprintf(":%v", flag.Arg(0))
 	}
 
+	fmt.Println("[+] Press Ctrl+C+Enter to quit this application")
 	fmt.Println("[+] Listening on port", destinationPort)
 	go connectionThread(destinationPort, clients)
 
@@ -205,7 +206,7 @@ func (s *Socket) readingFromStdin(src io.Reader, dst io.Writer) <-chan int {
 						s.isClosed = true
 						return
 					} else {
-						_, sendErr = dst.Write([]byte("\\003\n"))
+						_, sendErr = dst.Write([]byte("\003\n"))
 					}
 				case buf := <-inputChan:
 					// Normal input channel
