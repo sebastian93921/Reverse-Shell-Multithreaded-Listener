@@ -7,13 +7,14 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
-	"os/signal"
 )
 
-var signalChan = make(chan os.Signal, 1)
+var ctrlCChan = make(chan os.Signal, 1)
 var backgroundCommand = "rev-bg"
 
 func main() {
@@ -22,7 +23,7 @@ func main() {
 	fmt.Println("===========================")
 
 	// Keyboard signal notify
-	signal.Notify(signalChan, os.Interrupt)
+	signal.Notify(ctrlCChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 
 	var destinationPort string
 	clients := map[int]*Socket{}
@@ -47,7 +48,7 @@ func main() {
 	connectedSession := 1
 	for {
 		select {
-		case <-signalChan:
+		case <-ctrlCChan:
 			fmt.Println("\n[+] Application quit successfully")
 			os.Exit(0)
 		default:
@@ -55,24 +56,24 @@ func main() {
 				fmt.Print("listener> ")
 				text, _ := reader.ReadString('\n')
 				connectedSession = commandHandler(text, clients)
-			}else if len(clients) > 0 && connectedSession != 0 {
+			} else if len(clients) > 0 && connectedSession != 0 {
 				if !clients[connectedSession].isClosed {
 					clients[connectedSession].interact()
-				}else{
+				} else {
 					fmt.Println("[-] No matched session or session has been closed")
 				}
 				connectedSession = 0
 			}
 			time.Sleep(1 * time.Microsecond)
 		}
-		
+
 	}
 }
 
-func commandHandler(cmd string, clients map[int]*Socket) int{
+func commandHandler(cmd string, clients map[int]*Socket) int {
 	connectedSession := 0
 
-	splitCommand := strings.Split(cmd," ")
+	splitCommand := strings.Split(cmd, " ")
 	switch strings.TrimSuffix(splitCommand[0], "\n") {
 	case "help":
 		fmt.Println("sessions \t- List sessions")
@@ -80,7 +81,7 @@ func commandHandler(cmd string, clients map[int]*Socket) int{
 	case "sessions":
 		fmt.Println("---------------------->")
 		for _, client := range clients {
-				fmt.Println(client.status())
+			fmt.Println(client.status())
 		}
 		fmt.Println("<----------------------")
 	case "session":
@@ -94,10 +95,9 @@ func commandHandler(cmd string, clients map[int]*Socket) int{
 	return connectedSession
 }
 
-
-func connectionThread(destPort string, clients map[int]*Socket){
+func connectionThread(destPort string, clients map[int]*Socket) {
 	listener, err := net.Listen("tcp", destPort)
-	if err != nil {	
+	if err != nil {
 		fmt.Println("[-]", err)
 	}
 	//Assign session ID
@@ -109,22 +109,21 @@ func connectionThread(destPort string, clients map[int]*Socket){
 			fmt.Println("[-] Error accepting:", err)
 		}
 		// Handle connections in a new goroutine.
-		fmt.Println("[+] Got connection from <", con.RemoteAddr().String(),">, Session ID:", sessionId)
-		socket := &Socket{sessionId: sessionId ,con: con}
+		fmt.Println("[+] Got connection from <", con.RemoteAddr().String(), ">, Session ID:", sessionId)
+		socket := &Socket{sessionId: sessionId, con: con}
 		clients[sessionId] = socket
 		sessionId = sessionId + 1
 	}
 }
 
-
 /*
 	Socket
 */
 type Socket struct {
-	sessionId int
-	con net.Conn
+	sessionId    int
+	con          net.Conn
 	isBackground bool
-	isClosed bool
+	isClosed     bool
 }
 
 func (s *Socket) interact() {
@@ -146,7 +145,7 @@ func (s *Socket) interact() {
 
 func (s *Socket) copyFromConnection(src io.Reader, dst io.Writer) <-chan int {
 	buf := make([]byte, 1024)
-	sync_channel := make(chan int)
+	syncChannel := make(chan int)
 	go func() {
 		// Defer handling
 		defer func() {
@@ -157,7 +156,7 @@ func (s *Socket) copyFromConnection(src io.Reader, dst io.Writer) <-chan int {
 				}
 			}
 			// Notify that processing is finished
-			sync_channel <- 0
+			syncChannel <- 0
 		}()
 		for {
 			var nBytes int
@@ -180,33 +179,69 @@ func (s *Socket) copyFromConnection(src io.Reader, dst io.Writer) <-chan int {
 			}
 		}
 	}()
-	return sync_channel
+	return syncChannel
 }
-
 
 func (s *Socket) readingFromStdin(src io.Reader, dst io.Writer) <-chan int {
 	buf := make([]byte, 1024)
-	sync_channel := make(chan int)
+	syncChannel := make(chan int)
+	inputChan := make(chan []byte)
+
+	// Input handler
+	// Read on ctrl+c/z and input channel
+	go func() {
+		defer func() {
+			fmt.Println("\n[-] Input handler has closed")
+		}()
+		for {
+			if !s.isClosed {
+				var sendErr error
+				select {
+				case <-ctrlCChan:
+					// Ctrl+C handle
+					result := prompt(fmt.Sprintf("\n[+] Do you really want to quit session [%d] ?", s.sessionId), inputChan)
+					if result {
+						s.isClosed = true
+						return
+					} else {
+						_, sendErr = dst.Write([]byte("\\003\n"))
+					}
+				case buf := <-inputChan:
+					// Normal input channel
+					_, sendErr = dst.Write(buf)
+				}
+				if sendErr != nil {
+					fmt.Println("\n[!] Write error:", sendErr)
+					s.isClosed = true
+				}
+			}
+		}
+	}()
+
 	go func() {
 		// Defer handling
 		defer func() {
 			if con, ok := dst.(net.Conn); ok {
 				if s.isClosed {
 					con.Close()
-					fmt.Println("[-] Connection killed:", con.RemoteAddr())
-				}else{
-					fmt.Println("[-] Backgrounded session",s.sessionId,", status:",s.isBackground)
+					fmt.Println("\n[-] Connection killed:", con.RemoteAddr())
+				} else {
+					fmt.Println("\n[-] Backgrounded session", s.sessionId, ", status:", s.isBackground)
 				}
 			}
+
+			//Cleanup
+			close(inputChan)
 			// Notify that processing is finished
-			sync_channel <- 0
+			syncChannel <- 0
 		}()
 		for {
 			var nBytes int
 			var err error
+
 			nBytes, err = src.Read(buf)
 			// Special command
-			command := string(buf[0:nBytes - 1])
+			command := string(buf[0 : nBytes-1])
 			if command == backgroundCommand {
 				s.isBackground = true
 			}
@@ -221,40 +256,23 @@ func (s *Socket) readingFromStdin(src io.Reader, dst io.Writer) <-chan int {
 				}
 				break
 			}
-			// Process input
-			select {
-			case <-signalChan:
-				// Ctrl+C handle
-				result := prompt("[+] Do you really want to quit?", src)
-				if result {
-					s.isClosed = true
-					break
-				}else{
-					_, err = dst.Write([]byte("\003\n"))
-				}
-			default:
-				_, err = dst.Write(buf[0:nBytes])
-			}
-			if err != nil {
-				fmt.Println("[!] Write error:", err)
-				s.isClosed = true
-			}
+
+			// Send input to the input channel
+			inputChan <- buf[0:nBytes]
 		}
 	}()
-	return sync_channel
+	return syncChannel
 }
 
-func (s *Socket) status() string{
+func (s *Socket) status() string {
 	return fmt.Sprintf("Session ID: [%d], Connection <%s> Seesion killed [%t]", s.sessionId, s.con.RemoteAddr(), s.isClosed)
 }
 
-
-func prompt(message string, src io.Reader) bool{
-	buf := make([]byte, 1024)
-	for{
+func prompt(message string, inputChan chan []byte) bool {
+	for {
 		fmt.Print(message + " (Y/N): ")
-		nBytes, _ := src.Read(buf)
-		input := strings.TrimSuffix(string(buf[0:nBytes]), "\n")
+		buf := <-inputChan
+		input := strings.TrimSuffix(string(buf), "\n")
 		input = strings.ToUpper(input)
 		if input == "Y" || input == "N" {
 			return input == "Y"
