@@ -283,7 +283,7 @@ func (s *Socket) inSessionCommandHandler(command string, src io.Reader, dst io.W
 		fmt.Println("<-------------------------------------------------")
 		fmt.Println(backgroundCommand,"- Background the session")
 		fmt.Println(pythonttyCommand,"- Spawn tty bash shell using python (Linux)")
-		fmt.Println(perlttyCommand,"- Spawn to start tty bash shell using perl (Linux)")
+		fmt.Println(perlttyCommand,"- Spawn tty bash shell using perl (Linux)")
 		fmt.Println("------------------------------------------------->")
 		return true
 	case backgroundCommand:
