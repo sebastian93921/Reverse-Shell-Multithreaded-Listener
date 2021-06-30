@@ -85,12 +85,14 @@ func commandHandler(cmd string, clients map[int]*Socket) int {
 	case "help":
 		fmt.Println("sessions \t- List sessions")
 		fmt.Println("session <num> \t- Get into session by ID")
+	case "exit":
+		os.Exit(0)
 	case "sessions":
-		fmt.Println("---------------------->")
+		fmt.Println("--------------------------------------------------------------------->")
 		for _, client := range clients {
 			fmt.Println(client.status())
 		}
-		fmt.Println("<----------------------")
+		fmt.Println("<---------------------------------------------------------------------")
 	case "session":
 		connectedSession, _ = strconv.Atoi(strings.TrimSuffix(splitCommand[1], "\n"))
 		if connectedSession > len(clients) {
@@ -134,20 +136,27 @@ type Socket struct {
 }
 
 func (s *Socket) interact() {
-	s.isBackground = false
+	if (!s.isClosed){
+		fmt.Printf("[!] Session %d was closed! \n", s.sessionId)
+		s.isBackground = false
 
-	fmt.Printf("[+] Interact with Session ID: %d \n", s.sessionId)
-	fmt.Printf("[!] Type '%s' to background the current session\n", backgroundCommand)
-	fmt.Printf("[!] Type '%s' to show available commands\n", sessionHelpCommand)
-	fmt.Println("[+] Happy cracking!")
-	// Mark two signal for informational
-	stdoutThread := s.copyFromConnection(s.con, os.Stdout)
-	stdinThread := s.readingFromStdin(os.Stdin, s.con)
-	select {
-	case <-stdoutThread:
-		fmt.Println("[-] Remote connection is closed")
-	case <-stdinThread:
-		// fmt.Println("[-] DEBUG: Terminated by user",stdinThread)
+		fmt.Printf("[+] Interact with Session ID: %d \n", s.sessionId)
+		fmt.Printf("[!] Type '%s' to background the current session\n", backgroundCommand)
+		fmt.Printf("[!] Type '%s' to show available commands\n", sessionHelpCommand)
+		fmt.Println("[+] Happy cracking!")
+		// Mark two signal for informational
+		stdoutThread := s.copyFromConnection(s.con, os.Stdout)
+		stdinThread := s.readingFromStdin(os.Stdin, s.con)
+		select {
+		case <-stdoutThread:
+			fmt.Println("[-] Remote connection is closed")
+			// Unexpected session close, force close whole session
+			s.isClosed = true
+		case <-stdinThread:
+			// fmt.Println("[-] DEBUG: Terminated by user",stdinThread)
+		}
+	}else{
+		fmt.Printf("[!] Session %d was closed! \n", s.sessionId)
 	}
 }
 
@@ -181,7 +190,7 @@ func (s *Socket) copyFromConnection(src io.Reader, dst io.Writer) <-chan int {
 				break
 			}
 			_, err = dst.Write(buf[0:nBytes])
-			if err != nil {
+			if err != nil && !s.isClosed {
 				fmt.Println("[!] Write error:", err)
 				s.isClosed = true
 			}
@@ -204,7 +213,7 @@ func (s *Socket) readingFromStdin(src io.Reader, dst io.Writer) <-chan int {
 				select {
 				case <-ctrlCChan:
 					// Ctrl+C handle
-					result := prompt(fmt.Sprintf("\n[+] Do you really want to kill session [%d] ?", s.sessionId), inputChan)
+					result := s.prompt(fmt.Sprintf("\n[+] Do you really want to kill session [%d] ?", s.sessionId), inputChan)
 					if result {
 						s.isClosed = true
 						fmt.Println("[!] Press Enter to continue ..")
@@ -216,7 +225,7 @@ func (s *Socket) readingFromStdin(src io.Reader, dst io.Writer) <-chan int {
 					// Normal input channel
 					_, sendErr = dst.Write(buf)
 				}
-				if sendErr != nil {
+				if sendErr != nil && !s.isClosed {
 					fmt.Println("\n[!] Write error:", sendErr)
 					s.isClosed = true
 				}
@@ -274,6 +283,23 @@ func (s *Socket) readingFromStdin(src io.Reader, dst io.Writer) <-chan int {
 	return syncChannel
 }
 
+func (s *Socket) prompt(message string, inputChan chan []byte) bool {
+	for {
+			if !s.isClosed && !s.isBackground {
+			fmt.Print(message + " (Y/N): ")
+			buf := <-inputChan
+			input := strings.TrimSuffix(string(buf), "\n")
+			input = strings.ToUpper(input)
+			if input == "Y" || input == "N" {
+				return input == "Y"
+			}
+		}else{
+			return false
+		}
+	}
+}
+
+
 func (s *Socket) status() string {
 	return fmt.Sprintf("Session ID: [%d], Connection <%s> Seesion killed [%t]", s.sessionId, s.con.RemoteAddr(), s.isClosed)
 }
@@ -285,11 +311,11 @@ func (s *Socket) inSessionCommandHandler(command string, src io.Reader, dst io.W
 	if strings.HasPrefix(command, "rev-") {
 		switch command {
 		case sessionHelpCommand:
-			fmt.Println("<-------------------------------------------------")
+			fmt.Println("<---------------------------------------------------------------------")
 			fmt.Println(backgroundCommand,"- Background the session")
 			fmt.Println(pythonttyCommand,"- Spawn tty bash shell using python (Linux)")
 			fmt.Println(perlttyCommand,"- Spawn tty bash shell using perl (Linux)")
-			fmt.Println("------------------------------------------------->")
+			fmt.Println("--------------------------------------------------------------------->")
 		case backgroundCommand:
 			s.isBackground = true
 		case pythonttyCommand:
@@ -306,16 +332,4 @@ func (s *Socket) inSessionCommandHandler(command string, src io.Reader, dst io.W
 
 	//Default
 	return false
-}
-
-func prompt(message string, inputChan chan []byte) bool {
-	for {
-		fmt.Print(message + " (Y/N): ")
-		buf := <-inputChan
-		input := strings.TrimSuffix(string(buf), "\n")
-		input = strings.ToUpper(input)
-		if input == "Y" || input == "N" {
-			return input == "Y"
-		}
-	}
 }
