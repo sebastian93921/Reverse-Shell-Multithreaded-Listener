@@ -231,7 +231,7 @@ class Shell:
         # Catch ^C
         except KeyboardInterrupt:
             print("")
-            res = prompt("Do you really want to quit?")
+            res = prompt("Do you really want to kill this session?")
             if (res):
                 self.quit = True
                 print("")

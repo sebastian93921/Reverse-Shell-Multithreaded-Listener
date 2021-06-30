@@ -1,3 +1,7 @@
+/* Reverse shell listener
+ * 
+ * @author Sebastian Ko sebastian.ko.dv@gmail.com 
+ */
 package main
 
 import (
@@ -200,7 +204,7 @@ func (s *Socket) readingFromStdin(src io.Reader, dst io.Writer) <-chan int {
 				select {
 				case <-ctrlCChan:
 					// Ctrl+C handle
-					result := prompt(fmt.Sprintf("\n[+] Do you really want to quit session [%d] ?", s.sessionId), inputChan)
+					result := prompt(fmt.Sprintf("\n[+] Do you really want to kill session [%d] ?", s.sessionId), inputChan)
 					if result {
 						s.isClosed = true
 						fmt.Println("[!] Press Enter to continue ..")
