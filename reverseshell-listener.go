@@ -305,7 +305,7 @@ func (s *Socket) status() string {
 }
 
 func (s *Socket) inSessionCommandHandler(command string, src io.Reader, dst io.Writer) bool{
-	myipCommand := "rev-myip"
+	myipCommand := "rev-host"
 	
 	if strings.HasPrefix(command, "rev-") {
 		fmt.Println("<---------------------------------------------------------------------")
