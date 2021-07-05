@@ -305,28 +305,38 @@ func (s *Socket) status() string {
 }
 
 func (s *Socket) inSessionCommandHandler(command string, src io.Reader, dst io.Writer) bool{
-	pythonttyCommand := "rev-python"
-	perlttyCommand  := "rev-perl"
+	myipCommand := "rev-myip"
 	
 	if strings.HasPrefix(command, "rev-") {
+		fmt.Println("<---------------------------------------------------------------------")
 		switch command {
 		case sessionHelpCommand:
-			fmt.Println("<---------------------------------------------------------------------")
 			fmt.Println(backgroundCommand,"- Background the session")
-			fmt.Println(pythonttyCommand,"- Spawn tty bash shell using python (Linux)")
-			fmt.Println(perlttyCommand,"- Spawn tty bash shell using perl (Linux)")
-			fmt.Println("--------------------------------------------------------------------->")
+			fmt.Println(myipCommand,"- Display host ip address")
 		case backgroundCommand:
+			fmt.Println("[+] Move the current session to background..")
 			s.isBackground = true
-		case pythonttyCommand:
-			fmt.Println("[+] Try Python 3 tty command ...")
-			dst.Write([]byte("python3 -c 'import pty;pty.spawn(\"/bin/bash\")';\\n"))
-			fmt.Println("[+] Try Python 2 tty command ...")
-			dst.Write([]byte("python -c 'import pty;pty.spawn(\"/bin/bash\")';\\n"))
-		case perlttyCommand:
-			fmt.Println("[+] Try Perl tty command ...")
-			dst.Write([]byte("perl -e 'exec \"/bin/bash\";'\\n"))
+		case myipCommand:
+			ifaces, _ := net.Interfaces()
+			fmt.Println("[+] Host IP Address..")
+			for _, i := range ifaces {
+				addrs, _ := i.Addrs()
+				for _, addr := range addrs {
+						var ip net.IP
+						switch v := addr.(type) {
+						case *net.IPNet:
+										ip = v.IP
+						case *net.IPAddr:
+										ip = v.IP
+						}
+						if ip == nil || ip.IsLoopback() {
+							continue
+						}
+						fmt.Println("[+] Address: [",ip,"] \t Interface: [", i.Name ,"]")
+				}
+			}
 		}
+		fmt.Println("--------------------------------------------------------------------->")
 		return true
 	}
 
