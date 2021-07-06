@@ -285,7 +285,7 @@ func (s *Socket) readingFromStdin(src io.Reader, dst io.Writer) <-chan int {
 
 func (s *Socket) prompt(message string, inputChan chan []byte) bool {
 	for {
-			if !s.isClosed && !s.isBackground {
+		if !s.isClosed && !s.isBackground {
 			fmt.Print(message + " (Y/N): ")
 			buf := <-inputChan
 			input := strings.TrimSuffix(string(buf), "\n")
