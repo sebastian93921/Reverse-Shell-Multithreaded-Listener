@@ -1,6 +1,6 @@
 /* Reverse shell listener
- * 
- * @author Sebastian Ko sebastian.ko.dv@gmail.com 
+ *
+ * @author Sebastian Ko sebastian.ko.dv@gmail.com
  */
 package main
 
@@ -25,7 +25,7 @@ var sessionHelpCommand = "rev-help"
 func main() {
 	fmt.Println("=======================================")
 	fmt.Println(" Multithreaded Reverse Shell listener  ")
-	fmt.Println(" v0.0.1                                ")
+	fmt.Println(" v0.0.2                                ")
 	fmt.Println("=======================================")
 
 	// Keyboard signal notify
@@ -136,7 +136,7 @@ type Socket struct {
 }
 
 func (s *Socket) interact() {
-	if (!s.isClosed){
+	if !s.isClosed {
 		fmt.Printf("[!] Session %d was closed! \n", s.sessionId)
 		s.isBackground = false
 
@@ -155,7 +155,7 @@ func (s *Socket) interact() {
 		case <-stdinThread:
 			// fmt.Println("[-] DEBUG: Terminated by user",stdinThread)
 		}
-	}else{
+	} else {
 		fmt.Printf("[!] Session %d was closed! \n", s.sessionId)
 	}
 }
@@ -229,7 +229,7 @@ func (s *Socket) readingFromStdin(src io.Reader, dst io.Writer) <-chan int {
 					fmt.Println("\n[!] Write error:", sendErr)
 					s.isClosed = true
 				}
-			}else{
+			} else {
 				break
 			}
 		}
@@ -258,8 +258,8 @@ func (s *Socket) readingFromStdin(src io.Reader, dst io.Writer) <-chan int {
 
 			nBytes, err = src.Read(buf)
 			// Special command
-			command := strings.TrimSuffix(string(buf[0 : nBytes]), "\n")
-			commandExecuted := s.inSessionCommandHandler(command,src,dst)
+			command := strings.TrimSuffix(string(buf[0:nBytes]), "\n")
+			commandExecuted := s.inSessionCommandHandler(command, src, dst)
 
 			if s.isBackground || s.isClosed {
 				break
@@ -273,9 +273,9 @@ func (s *Socket) readingFromStdin(src io.Reader, dst io.Writer) <-chan int {
 			}
 
 			// Send input to the input channel
-			if(!commandExecuted){
+			if !commandExecuted {
 				inputChan <- buf[0:nBytes]
-			}else{
+			} else {
 				fmt.Println("[!] Press Enter to continue ..")
 			}
 		}
@@ -293,26 +293,25 @@ func (s *Socket) prompt(message string, inputChan chan []byte) bool {
 			if input == "Y" || input == "N" {
 				return input == "Y"
 			}
-		}else{
+		} else {
 			return false
 		}
 	}
 }
 
-
 func (s *Socket) status() string {
 	return fmt.Sprintf("Session ID: [%d], Connection <%s> Seesion killed [%t]", s.sessionId, s.con.RemoteAddr(), s.isClosed)
 }
 
-func (s *Socket) inSessionCommandHandler(command string, src io.Reader, dst io.Writer) bool{
+func (s *Socket) inSessionCommandHandler(command string, src io.Reader, dst io.Writer) bool {
 	myipCommand := "rev-myip"
-	
+
 	if strings.HasPrefix(command, "rev-") {
 		fmt.Println("<---------------------------------------------------------------------")
 		switch command {
 		case sessionHelpCommand:
-			fmt.Println(backgroundCommand,"- Background the session")
-			fmt.Println(myipCommand,"- Display host ip address")
+			fmt.Println(backgroundCommand, "- Background the session")
+			fmt.Println(myipCommand, "- Display host ip address")
 		case backgroundCommand:
 			fmt.Println("[+] Move the current session to background..")
 			s.isBackground = true
@@ -322,17 +321,17 @@ func (s *Socket) inSessionCommandHandler(command string, src io.Reader, dst io.W
 			for _, i := range ifaces {
 				addrs, _ := i.Addrs()
 				for _, addr := range addrs {
-						var ip net.IP
-						switch v := addr.(type) {
-						case *net.IPNet:
-										ip = v.IP
-						case *net.IPAddr:
-										ip = v.IP
-						}
-						if ip == nil || ip.IsLoopback() {
-							continue
-						}
-						fmt.Println("[+] Address: [",ip,"] \t Interface: [", i.Name ,"]")
+					var ip net.IP
+					switch v := addr.(type) {
+					case *net.IPNet:
+						ip = v.IP
+					case *net.IPAddr:
+						ip = v.IP
+					}
+					if ip == nil || ip.IsLoopback() {
+						continue
+					}
+					fmt.Println("[+] Address: [", ip, "] \t Interface: [", i.Name, "]")
 				}
 			}
 		}
